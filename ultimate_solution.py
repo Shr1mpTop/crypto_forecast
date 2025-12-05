@@ -636,11 +636,11 @@ xgb_params = {
     'reg_lambda': 0.5,
     'random_state': 42,
     'n_jobs': -1,
-    'verbosity': 0,
-    'early_stopping_rounds': 100
+    'verbosity': 0
 }
 
 xgb_model = XGBRegressor(**xgb_params)
+xgb_model.set_params(early_stopping_rounds=100)
 xgb_model.fit(
     X_train, y_train,
     eval_set=[(X_val, y_val)],
@@ -651,13 +651,16 @@ y_pred_xgb = xgb_model.predict(X_val)
 rmse_xgb = np.sqrt(mean_squared_error(y_val, y_pred_xgb))
 corr_xgb, _ = stats.pearsonr(y_val, y_pred_xgb)
 
-xgb_best_iter = xgb_model.best_iteration if hasattr(xgb_model, 'best_iteration') and xgb_model.best_iteration else xgb_params['n_estimators']
+try:
+    xgb_best_iter = xgb_model.best_iteration
+except:
+    xgb_best_iter = xgb_params['n_estimators']
 results.append({'Model': 'XGBoost', 'RMSE': rmse_xgb, 'Correlation': corr_xgb, 'Iterations': xgb_best_iter})
 trained_models['XGBoost'] = xgb_model
 val_predictions['XGBoost'] = y_pred_xgb
 
 print(f"\nXGBoost 结果:")
-print(f"  最佳迭代: {xgb_model.best_iteration}")
+print(f"  最佳迭代: {xgb_best_iter}")
 print(f"  RMSE: {rmse_xgb:.6f}")
 print(f"  Pearson相关系数: {corr_xgb:.6f}")
 
@@ -924,7 +927,7 @@ print("\n" + "=" * 60)
 print("🔧 后处理优化")
 print("=" * 60)
 
-# 保存原始预测
+# 保存原始预测(无裁剪)
 original_predictions = test_predictions.copy()
 
 # 1. 检查与训练集Target的分布一致性
@@ -934,16 +937,20 @@ test_pred_mean = test_predictions.mean()
 test_pred_std = test_predictions.std()
 
 print(f"训练集Target: 均值={train_target_mean:.6f}, 标准差={train_target_std:.6f}")
-print(f"测试集预测: 均值={test_pred_mean:.6f}, 标准差={test_pred_std:.6f}")
+print(f"测试集预测(原始): 均值={test_pred_mean:.6f}, 标准差={test_pred_std:.6f}")
 
-# 2. 轻微平滑 (可选)
-# test_predictions = savgol_filter(test_predictions, window_length=5, polyorder=2)
+# 2. 标准化到训练分布 (推荐方法)
+test_predictions_normalized = (test_predictions - test_pred_mean) / test_pred_std * train_target_std + train_target_mean
+print(f"测试集预测(标准化后): 均值={test_predictions_normalized.mean():.6f}, 标准差={test_predictions_normalized.std():.6f}")
 
-# 3. 异常值裁剪
-lower_bound = train_target_mean - 4 * train_target_std
-upper_bound = train_target_mean + 4 * train_target_std
-test_predictions = np.clip(test_predictions, lower_bound, upper_bound)
-print(f"裁剪范围: [{lower_bound:.6f}, {upper_bound:.6f}]")
+# 3. 轻微裁剪极端值 (使用分位数)
+lower_bound = np.percentile(y, 0.5)
+upper_bound = np.percentile(y, 99.5)
+test_predictions_clipped = np.clip(test_predictions_normalized, lower_bound, upper_bound)
+print(f"裁剪范围(0.5%-99.5%分位): [{lower_bound:.6f}, {upper_bound:.6f}]")
+
+# 使用标准化后的预测作为最终结果
+test_predictions = test_predictions_normalized
 
 
 # ============================================
@@ -953,28 +960,35 @@ print("\n" + "=" * 60)
 print("📄 生成提交文件")
 print("=" * 60)
 
-# 创建提交DataFrame
-submission_df = pd.DataFrame({
-    'Timestamp': test_df['Timestamp'],
-    'Prediction': test_predictions
-})
-
-# 保存
+# 创建多个版本的提交
 submission_dir = Path('submissions')
 submission_dir.mkdir(exist_ok=True)
 
-# 生成时间戳
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-submission_file = submission_dir / f'ultimate_ensemble_{timestamp}.csv'
-submission_df.to_csv(submission_file, index=False)
-
-# 同时保存一个固定名称的版本
+# 版本1: 标准化版本
+submission_df = pd.DataFrame({
+    'Timestamp': test_df['Timestamp'],
+    'Prediction': test_predictions_normalized
+})
 submission_df.to_csv(submission_dir / 'ultimate_ensemble_submission.csv', index=False)
+print(f"✅ 标准化版本: submissions/ultimate_ensemble_submission.csv")
 
-print(f"✅ 提交文件已保存: {submission_file}")
-print(f"✅ 提交文件已保存: submissions/ultimate_ensemble_submission.csv")
+# 版本2: 裁剪版本
+submission_clipped = pd.DataFrame({
+    'Timestamp': test_df['Timestamp'],
+    'Prediction': test_predictions_clipped
+})
+submission_clipped.to_csv(submission_dir / 'ultimate_ensemble_clipped.csv', index=False)
+print(f"✅ 裁剪版本: submissions/ultimate_ensemble_clipped.csv")
 
-print(f"\n提交文件预览:")
+# 版本3: 原始版本
+submission_original = pd.DataFrame({
+    'Timestamp': test_df['Timestamp'],
+    'Prediction': original_predictions
+})
+submission_original.to_csv(submission_dir / 'ultimate_ensemble_original.csv', index=False)
+print(f"✅ 原始版本: submissions/ultimate_ensemble_original.csv")
+
+print(f"\n标准化版本预览:")
 print(submission_df.head(10))
 print("\n...")
 print(submission_df.tail(10))
