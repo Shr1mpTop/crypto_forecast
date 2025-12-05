@@ -185,8 +185,12 @@ def train_one(params: dict, data: dict, y_true: np.ndarray, split: int):
     pub, priv, final = score_submission(test_pred, y_true, split)
     pub_rev, priv_rev, final_rev = score_submission(-test_pred, y_true, split)
     
-    # Choose the better direction
-    if final_rev > final:
+    # Choose the better direction (handle NaN)
+    if np.isnan(final) and not np.isnan(final_rev):
+        test_pred = -test_pred
+        pub, priv, final = pub_rev, priv_rev, final_rev
+        is_reversed = True
+    elif not np.isnan(final_rev) and final_rev > final:
         test_pred = -test_pred
         pub, priv, final = pub_rev, priv_rev, final_rev
         is_reversed = True
