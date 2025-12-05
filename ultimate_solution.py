@@ -636,7 +636,8 @@ xgb_params = {
     'reg_lambda': 0.5,
     'random_state': 42,
     'n_jobs': -1,
-    'verbosity': 0
+    'verbosity': 0,
+    'early_stopping_rounds': 100
 }
 
 xgb_model = XGBRegressor(**xgb_params)
@@ -650,7 +651,8 @@ y_pred_xgb = xgb_model.predict(X_val)
 rmse_xgb = np.sqrt(mean_squared_error(y_val, y_pred_xgb))
 corr_xgb, _ = stats.pearsonr(y_val, y_pred_xgb)
 
-results.append({'Model': 'XGBoost', 'RMSE': rmse_xgb, 'Correlation': corr_xgb, 'Iterations': xgb_model.best_iteration})
+xgb_best_iter = xgb_model.best_iteration if hasattr(xgb_model, 'best_iteration') and xgb_model.best_iteration else xgb_params['n_estimators']
+results.append({'Model': 'XGBoost', 'RMSE': rmse_xgb, 'Correlation': corr_xgb, 'Iterations': xgb_best_iter})
 trained_models['XGBoost'] = xgb_model
 val_predictions['XGBoost'] = y_pred_xgb
 
