@@ -145,15 +145,33 @@ def sample_param_grid():
     start_date_options = pd.date_range('2022-06-01', '2024-09-01', freq='MS').to_pydatetime().tolist()
     
     params = {
+        # Data parameters
         'start_date': np.random.choice(start_date_options),
+        'val_ratio': np.random.choice([0.1, 0.15, 0.2, 0.25, 0.3]),
+        
+        # Tree structure
         'num_leaves': np.random.choice([7, 15, 31, 63, 127]),
         'max_depth': np.random.randint(3, 9),
-        'learning_rate': np.random.choice([0.005, 0.01, 0.02, 0.03, 0.05]),
         'min_child_samples': np.random.choice([5, 10, 20, 30, 50]),
+        'min_sum_hessian_in_leaf': np.random.choice([0.001, 0.01, 0.1, 1.0, 5.0]),
+        
+        # Learning parameters
+        'learning_rate': np.random.choice([0.005, 0.01, 0.02, 0.03, 0.05]),
+        'boosting_type': np.random.choice(['gbdt', 'dart', 'goss']),
+        
+        # Sampling parameters
         'subsample': np.random.uniform(0.7, 1.0),
-        'colsample_bytree': np.random.uniform(0.7, 1.0),
+        'subsample_freq': np.random.choice([1, 3, 5, 10]),
+        'colsample_bytree': np.random.uniform(0.6, 1.0),
+        
+        # Regularization
         'reg_alpha': np.random.choice([0.0, 0.01, 0.1, 0.5, 1.0]),
         'reg_lambda': np.random.choice([0.0, 0.01, 0.1, 0.5, 1.0, 5.0]),
+        'path_smooth': np.random.uniform(0.0, 0.5),
+        
+        # Training control
+        'early_stopping_rounds': np.random.choice([30, 50, 80, 100, 150]),
+        'random_state': np.random.choice([42, 123, 456, 789, 2023, 2024, 2025]),
         'n_estimators': 5000,
     }
     return params
@@ -179,25 +197,28 @@ def train_one(params: dict, y_true_pub, y_true_priv, search_date: bool = False, 
     X_train, y_train, feat_cols = build_dataset(train_df, is_train=True)
     X_test, _ = build_dataset(test_df, is_train=False)
     
-    # Split validation
-    val_size = min(5000, len(X_train) // 5)
+    # Split validation (dynamic size)
+    val_ratio = params.pop('val_ratio', 0.2)
+    val_size = int(len(X_train) * val_ratio)
     X_tr, y_tr = X_train[:-val_size], y_train[:-val_size]
     X_val, y_val = X_train[-val_size:], y_train[-val_size:]
     
+    # Extract early_stopping_rounds
+    early_stopping_rounds = params.pop('early_stopping_rounds', 50)
+    
     # Train model
-    model_params = {k: v for k, v in params.items() if k != 'start_date'}
+    model_params = {k: v for k, v in params.items() if k not in ['start_date']}
     model = lgb.LGBMRegressor(
         objective='regression',
         metric='rmse',
         verbosity=-1,
-        random_state=42,
         **model_params
     )
     
     model.fit(
         X_tr, y_tr,
         eval_set=[(X_val, y_val)],
-        callbacks=[lgb.early_stopping(50, verbose=False)]
+        callbacks=[lgb.early_stopping(early_stopping_rounds, verbose=False)]
     )
     
     # Predict

@@ -134,11 +134,12 @@ def sample_param_grid(trials: int, seed: int, search_start_date: bool = False):
         [30, 50, 70],                  # min_child_samples
         [0.0, 0.05, 0.1],              # reg_alpha
         [0.1, 0.2, 0.3],               # reg_lambda
+        [42, 123, 789, 2024],          # random_state (different seeds)
     ))
     rng.shuffle(grid)
     selected = grid[: min(trials, len(grid))]
     configs = []
-    for start_date, num_leaves, max_depth, lr, n_estimators, subsample, colsample, min_child, reg_alpha, reg_lambda in selected:
+    for start_date, num_leaves, max_depth, lr, n_estimators, subsample, colsample, min_child, reg_alpha, reg_lambda, random_state in selected:
         configs.append({
             'start_date': start_date,
             'params': {
@@ -155,7 +156,7 @@ def sample_param_grid(trials: int, seed: int, search_start_date: bool = False):
                 'objective': 'regression',
                 'metric': 'rmse',
                 'verbosity': -1,
-                'random_state': seed,
+                'random_state': random_state,
                 'n_jobs': -1,
             }
         })

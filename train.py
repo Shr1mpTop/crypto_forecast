@@ -194,6 +194,8 @@ Best known configuration:
         ]
         if args.search_date:
             sys.argv.append('--search-date')
+        elif args.start_date:
+            sys.argv.extend(['--start-date', args.start_date])
         
         if args.save:
             sys.argv.extend(['--save-best', args.save])
