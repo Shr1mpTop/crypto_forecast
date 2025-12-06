@@ -159,7 +159,7 @@ def sample_param_grid():
     return params
 
 
-def train_one(params: dict, y_true_pub, y_true_priv, search_date: bool = False):
+def train_one(params: dict, y_true_pub, y_true_priv, search_date: bool = False, fixed_start_date: str = None):
     """Train one model with given parameters"""
     # Load data
     train_df = pd.read_csv(TRAIN_PATH)
@@ -167,10 +167,13 @@ def train_one(params: dict, y_true_pub, y_true_priv, search_date: bool = False):
     train_df['Timestamp'] = pd.to_datetime(train_df['Timestamp'])
     test_df['Timestamp'] = pd.to_datetime(test_df['Timestamp'])
     
-    # Filter by start_date if searching
+    # Filter by start_date
     if search_date:
         start_date = str(params.pop('start_date'))
         train_df = train_df[train_df['Timestamp'] >= start_date].reset_index(drop=True)
+    elif fixed_start_date:
+        train_df = train_df[train_df['Timestamp'] >= fixed_start_date].reset_index(drop=True)
+        print(f'Using fixed start_date: {fixed_start_date}, data size: {len(train_df)}')
     
     # Build datasets
     X_train, y_train, feat_cols = build_dataset(train_df, is_train=True)
@@ -241,6 +244,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--trials', type=int, default=20, help='Number of trials')
     parser.add_argument('--search-date', action='store_true', help='Search start_date')
+    parser.add_argument('--start-date', type=str, default=None, help='Fixed training start date (YYYY-MM-DD)')
     parser.add_argument('--save-best', type=str, help='Save best submission CSV')
     args = parser.parse_args()
     
@@ -252,6 +256,8 @@ def main():
     print(f"🚀 Advanced LightGBM Tuning (Simplified Features)")
     print(f"Trials: {args.trials}")
     print(f"Search start_date: {args.search_date}")
+    if args.start_date:
+        print(f"Fixed start_date: {args.start_date}")
     print()
     
     best_score = -np.inf
@@ -260,7 +266,9 @@ def main():
     
     for i in range(args.trials):
         params = sample_param_grid()
-        result = train_one(params, y_true_pub, y_true_priv, search_date=args.search_date)
+        result = train_one(params, y_true_pub, y_true_priv, 
+                          search_date=args.search_date, 
+                          fixed_start_date=args.start_date)
         
         final = result['final']
         pub = result['pub']
