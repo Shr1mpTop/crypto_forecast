@@ -287,8 +287,8 @@ def main():
     if args.save_best and best_pred is not None:
         test_df = pd.read_csv(TEST_PATH)
         sub_df = pd.DataFrame({
-            'ID': range(len(test_df)),
-            'Target': best_pred
+            'Timestamp': test_df['Timestamp'],
+            'Prediction': best_pred
         })
         sub_df.to_csv(args.save_best, index=False)
         print(f"💾 Saved to {args.save_best}")
