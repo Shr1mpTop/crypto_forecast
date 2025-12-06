@@ -204,7 +204,7 @@ def train_one(params: dict, y_true_pub, y_true_priv, search_date: bool = False, 
     X_val, y_val = X_train[-val_size:], y_train[-val_size:]
     
     # Extract early_stopping_rounds
-    early_stopping_rounds = params.pop('early_stopping_rounds', 50)
+    early_stopping_rounds = int(params.pop('early_stopping_rounds', 50))
     
     # Train model
     model_params = {k: v for k, v in params.items() if k not in ['start_date']}
